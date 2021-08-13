@@ -1,0 +1,26 @@
+model_params:
+  name: 'VQ_VAE'
+  in_channels: 3
+  num_embeddings: 512
+  embedding_dim: 64
+  beta: 0.25
+
+exp_params:
+  dataset: celeba
+  data_path: "../shared/Data/"
+  image_size: 128
+  batch_size: 64 # Better to have a square number
+  sample_batch_size: 36
+  LR: 0.00005
+  weight_decay: 0.0
+  scheduler_gamma: 0.95
+
+trainer_params:
+  gpus: 1
+  max_nb_epochs: 50
+  max_epochs: 30
+
+logging_params:
+  save_dir: "logs/"
+  name: "VQ_VAE"
+  manual_seed: 1265

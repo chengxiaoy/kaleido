@@ -1,0 +1,25 @@
+model_params:
+  name: 'Style_GAN'
+  code_dim: 512
+  loss: 'r1'
+  mixing: True
+
+
+exp_params:
+  code_dim: 512
+  path: "/data/kaggle/shared/Data/ffhq_lmdb"
+  resolution: 128
+  batch_size: 16 # Better to have a square number
+  sample_batch_size: 36
+  LR: 0.0015
+
+
+trainer_params:
+  gpus: 1
+  max_nb_epochs: 50
+  max_epochs: 30
+
+logging_params:
+  save_dir: "logs/"
+  name: "Style_GAN"
+  manual_seed: 1265

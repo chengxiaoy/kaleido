@@ -1,0 +1,11 @@
+
+logs/
+
+
+__pycache__/
+.ipynb_checkpoints/
+
+Run.ipynb
+/logs/
+
+.idea
