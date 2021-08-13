@@ -138,11 +138,18 @@ class INTRO_VAEExperiment(pl.LightningModule):
     def train_dataloader(self):
         if self.params['dataset'] == 'ffhq':
             return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],
-                                       self.params["batch_size"])
+                                       self.params["batch_size"], split="train")
         return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="train")
 
     @pl.data_loader
     def val_dataloader(self):
         if self.params['dataset'] == 'ffhq':
-            return None
+            return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],
+                                       self.params["batch_size"], split="val")
         return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="valid")
+
+    def test_dataloader(self):
+        if self.params['dataset'] == 'ffhq':
+            return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],
+                                       self.params["batch_size"], split="val")
+        return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="test")
