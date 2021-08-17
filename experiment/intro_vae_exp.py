@@ -24,6 +24,11 @@ class INTRO_VAEExperiment(pl.LightningModule):
         real_img, labels = batch
         self.curr_device = real_img.device
 
+        if self.current_epoch < 2:
+            self.model.alpha = 0.0
+        else:
+            self.model.alpha = 0.25
+
         results = self.forward(real_img, labels=labels)
         train_loss = self.model.loss_function(*results,
                                               batch_size=self.params['batch_size'],
@@ -151,5 +156,5 @@ class INTRO_VAEExperiment(pl.LightningModule):
     def test_dataloader(self):
         if self.params['dataset'] == 'ffhq':
             return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],
-                                       self.params["batch_size"], split="val")
-        return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="test")
+                                       self.params['sample_batch_size'], split="val")
+        return get_celebA_dataloader(self.params["image_size"], self.params['sample_batch_size'], split="test")

@@ -3,7 +3,8 @@ from model.types_ import Tensor
 from torch import nn
 import torch
 import torch.nn.functional as F
-from typing import List,Any
+from typing import List, Any
+
 
 class ResBlock(nn.Module):
 
@@ -23,7 +24,7 @@ class ResBlock(nn.Module):
             ))
             in_channel = out_channel
         self.conv = nn.Sequential(*modules)
-
+        self.bn = nn.BatchNorm2d(out_channel)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -31,7 +32,7 @@ class ResBlock(nn.Module):
         out = self.conv(x)
         identity = self.down_sample(identity)
         out += identity
-        out = self.relu(out)
+        out = self.relu(self.bn(out))
         return out
 
 
@@ -50,9 +51,8 @@ class DownResLayer(nn.Module):
 class UpResLayer(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size_list: List):
         super(UpResLayer, self).__init__()
-        self.res_layer = ResBlock(kernel_size_list, out_channel, out_channel)
-        self.up_sample = nn.ConvTranspose2d(in_channel, out_channel, kernel_size=3, stride=2, padding=1,
-                                            output_padding=1)
+        self.res_layer = ResBlock(kernel_size_list, in_channel, out_channel)
+        self.up_sample = nn.Upsample(scale_factor=2, mode='nearest')
 
     def forward(self, x):
         out = self.up_sample(x)
@@ -121,20 +121,18 @@ class INTRO_VAE(BaseVAE):
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         labels = torch.zeros(self.batch_size).to(x.device)
         mu, logvar = self.encode(x)
-        prior_loss = torch.mean(torch.sum(-0.5 * (1 + logvar - mu ** 2 - torch.exp(logvar)), dim=1), dim=0)
+        prior_loss = self.kl_loss(mu, logvar)
         z = self.reparameter_trick(mu, logvar)
         recons_x = self.decode(z)
-        reconstruction_loss = F.mse_loss(x, recons_x, size_average=False) / x.size(0)
+        reconstruction_loss = self.reconstruction_loss(recons_x, x, True)
 
         recons_mu, recons_logvar = self.encode(recons_x)
-        recons_reg_loss = torch.mean(
-            torch.sum(-0.5 * (1 + recons_logvar - recons_mu ** 2 - torch.exp(recons_logvar)), dim=1), dim=0)
+        recons_reg_loss = self.kl_loss(recons_mu, recons_logvar)
 
         sample_z = torch.randn(z.shape).to(x.device)
         sample_x = self.decode(sample_z)
         sample_mu, sample_logvar = self.encode(recons_x)
-        sample_reg_loss = torch.mean(
-            torch.sum(-0.5 * (1 + sample_logvar - sample_mu ** 2 - torch.exp(sample_logvar)), dim=1), dim=0)
+        sample_reg_loss = self.kl_loss(sample_mu, sample_logvar)
 
         return [x, recons_x, sample_x, reconstruction_loss, prior_loss, recons_reg_loss, sample_reg_loss]
 
@@ -152,10 +150,10 @@ class INTRO_VAE(BaseVAE):
         recons_reg_loss = inputs[5]
         sample_reg_loss = inputs[6]
 
-        encoder_loss = reg_loss + self.alpha * (torch.abs(self.m - sample_reg_loss) + torch.abs(
-            self.m - recons_reg_loss)) + self.beta * recons_loss
+        encoder_loss = reg_loss + self.alpha * (
+                F.relu(self.m - sample_reg_loss) + F.relu(self.m - recons_reg_loss)) * 0.5 + self.beta * recons_loss
 
-        decoder_loss = self.alpha * (sample_reg_loss + recons_reg_loss) + self.beta * recons_loss
+        decoder_loss = self.alpha * (sample_reg_loss + recons_reg_loss) * 0.5 + self.beta * recons_loss
 
         return {"loss": encoder_loss + decoder_loss, "decoder_loss": decoder_loss, "encoder_loss": encoder_loss,
                 "recons_loss": recons_loss}
@@ -165,6 +163,23 @@ class INTRO_VAE(BaseVAE):
 
     def generate(self, x: Tensor, **kwargs) -> Tensor:
         return self.forward(x)[1]
+
+    def kl_loss(self, mu, logvar, prior_mu=0):
+        v_kl = mu.add(-prior_mu).pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
+        v_kl = v_kl.sum(dim=-1).mul_(-0.5)  # (batch, 2)
+        return v_kl.mean()
+
+    def reconstruction_loss(self, prediction, target, size_average=False):
+        error = (prediction - target).view(prediction.size(0), -1)
+        error = error ** 2
+        error = torch.sum(error, dim=-1)
+
+        if size_average:
+            error = error.mean()
+        else:
+            error = error.sum()
+
+        return error
 
 
 def match(x, y, dist):
