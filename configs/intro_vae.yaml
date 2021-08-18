@@ -2,7 +2,7 @@ model_params:
   name: 'INTRO_VAE'
   in_channels: 3
   num_embeddings: 512
-  beta: 0.5
+  beta: 0.2
   alpha: 0.25
   m: 110
   image_size: 128
