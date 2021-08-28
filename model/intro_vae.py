@@ -20,12 +20,13 @@ class ResBlock(nn.Module):
         for kernel_size in kernel_size_list:
             modules.append(nn.Sequential(
                 nn.Conv2d(in_channel, out_channel, kernel_size, stride=1, padding=(kernel_size - 1) // 2),
-                nn.BatchNorm2d(out_channel)
+                nn.BatchNorm2d(out_channel),
+                nn.LeakyReLU(0.2)
             ))
             in_channel = out_channel
         self.conv = nn.Sequential(*modules)
         self.bn = nn.BatchNorm2d(out_channel)
-        self.relu = nn.ReLU()
+        self.relu = nn.LeakyReLU(0.2)
 
     def forward(self, x):
         identity = x
@@ -131,7 +132,7 @@ class INTRO_VAE(BaseVAE):
 
         sample_z = torch.randn(z.shape).to(x.device)
         sample_x = self.decode(sample_z)
-        sample_mu, sample_logvar = self.encode(recons_x)
+        sample_mu, sample_logvar = self.encode(sample_x)
         sample_reg_loss = self.kl_loss(sample_mu, sample_logvar)
 
         return [x, recons_x, sample_x, reconstruction_loss, prior_loss, recons_reg_loss, sample_reg_loss]
@@ -156,7 +157,7 @@ class INTRO_VAE(BaseVAE):
         decoder_loss = self.alpha * (sample_reg_loss + recons_reg_loss) * 0.5 + self.beta * recons_loss
 
         return {"loss": encoder_loss + decoder_loss, "decoder_loss": decoder_loss, "encoder_loss": encoder_loss,
-                "recons_loss": recons_loss}
+                "recons_loss": recons_loss * self.beta}
 
     def sample(self, batch_size: int, current_device: int, **kwargs) -> Tensor:
         pass

@@ -71,6 +71,7 @@ class INTRO_VAEExperiment(pl.LightningModule):
                           f"{self.logger.save_dir}{self.logger.name}/version_{self.logger.version}/"
                           f"recons_{self.logger.name}_{self.current_epoch}.png",
                           normalize=True,
+                          range=(-1, 1),
                           nrow=6)
 
         # vutils.save_image(test_input.data,
@@ -87,6 +88,7 @@ class INTRO_VAEExperiment(pl.LightningModule):
                               f"{self.logger.save_dir}{self.logger.name}/version_{self.logger.version}/"
                               f"{self.logger.name}_{self.current_epoch}.png",
                               normalize=True,
+                              range=(-1, 1),
                               nrow=6)
         except:
             pass
