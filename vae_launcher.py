@@ -4,7 +4,7 @@ import numpy as np
 from pytorch_lightning.callbacks import EarlyStopping
 
 from model import *
-from experiment.intro_vae_exp import INTRO_VAEExperiment
+from experiment.soft_intro_vae_exp import SOFT_INTRO_VAEExperiment
 import torch.backends.cudnn as cudnn
 from pytorch_lightning import Trainer
 from pytorch_lightning.logging import TestTubeLogger
@@ -17,7 +17,7 @@ parser.add_argument('--config', '-c',
                     default='configs/vae.yaml')
 
 args = parser.parse_args()
-args.filename = "configs/intro_vae.yaml"
+args.filename = "configs/soft_intro_vae.yaml"
 with open(args.filename, 'r') as file:
     try:
         config = yaml.safe_load(file)
@@ -38,7 +38,7 @@ cudnn.deterministic = True
 cudnn.benchmark = False
 
 model = vae_models[config['model_params']['name']](**config['model_params'])
-experiment = INTRO_VAEExperiment(model, config['exp_params'])
+experiment = SOFT_INTRO_VAEExperiment(model, config['exp_params'])
 
 early_stop_callback = EarlyStopping(
     monitor='val_loss',

@@ -1,0 +1,32 @@
+model_params:
+  name: 'SOFT_INTRO_VAE'
+  in_channels: 3
+  num_embeddings: 512
+  image_size: 128
+  latent_dim: 256
+  batch_size: 64
+  beta_kl: 1
+  beta_rec: 0.5
+  beta_neg: 1024
+  gamma_r: 0.00000001
+
+
+exp_params:
+  dataset: "ffhq"
+  ffhq_data_path: "/data/kaggle/shared/Data/ffhq_lmdb"
+  image_size: 128
+  batch_size: 32 # Better to have a square number
+  sample_batch_size: 36
+  LR: 0.0002
+  weight_decay: 0.0
+  scheduler_gamma: 0.95
+
+trainer_params:
+  gpus: 1
+  max_nb_epochs: 50
+  max_epochs: 30
+
+logging_params:
+  save_dir: "logs/"
+  name: "SOFT_INTRO_VAE"
+  manual_seed: 1265
