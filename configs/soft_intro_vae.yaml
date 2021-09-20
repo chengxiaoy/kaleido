@@ -4,7 +4,7 @@ model_params:
   num_embeddings: 512
   image_size: 128
   latent_dim: 256
-  batch_size: 64
+  batch_size: 36
   beta_kl: 1
   beta_rec: 0.5
   beta_neg: 1024
@@ -15,7 +15,7 @@ exp_params:
   dataset: "ffhq"
   ffhq_data_path: "/data/kaggle/shared/Data/ffhq_lmdb"
   image_size: 128
-  batch_size: 32 # Better to have a square number
+  batch_size: 36 # Better to have a square number
   sample_batch_size: 36
   LR: 0.0002
   weight_decay: 0.0

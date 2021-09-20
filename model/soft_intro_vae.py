@@ -75,21 +75,22 @@ class SOFT_INTRO_VAE(BaseVAE):
         self.gamma_r = params["gamma_r"]
         self.scale = 1 / (3 * self.image_size ** 2)
 
-        # down_sample 32X
+        # down_sample 64X
         self.encoder = nn.Sequential(
             DownResLayer(3, 16, [5]),
             DownResLayer(16, 32, [1, 3, 3]),
             DownResLayer(32, 64, [1, 3, 3]),
             DownResLayer(64, 128, [1, 3, 3]),
             DownResLayer(128, 256, [1, 3, 3]),
+            DownResLayer(256, 256, [1, 3, 3]),
         )
 
-        self.fc_mu = nn.Linear(256 * (self.image_size // 32) ** 2, self.latent_dim)
-        self.fc_var = nn.Linear(256 * (self.image_size // 32) ** 2, self.latent_dim)
+        self.fc_mu = nn.Linear(256 * (self.image_size // 64) ** 2, self.latent_dim)
+        self.fc_var = nn.Linear(256 * (self.image_size // 64) ** 2, self.latent_dim)
 
         # up_sample 32X
         self.decoder_input = nn.Sequential(
-            nn.Linear(self.latent_dim, 256 * (self.image_size // 32) ** 2),
+            nn.Linear(self.latent_dim, 256 * (self.image_size // 64) ** 2),
             nn.ReLU()
         )
 
@@ -99,6 +100,7 @@ class SOFT_INTRO_VAE(BaseVAE):
             UpResLayer(128, 64, [1, 3, 3]),
             UpResLayer(64, 32, [1, 3, 3]),
             UpResLayer(32, 16, [1, 3, 3]),
+            UpResLayer(16, 16, [1, 3, 3]),
         )
 
         self.final_layer = nn.Sequential(
@@ -116,7 +118,7 @@ class SOFT_INTRO_VAE(BaseVAE):
 
     def decode(self, input: Tensor) -> Any:
         result = self.decoder_input(input)
-        result = result.view(-1, 256, self.image_size // 32, self.image_size // 32)
+        result = result.view(-1, 256, self.image_size // 64, self.image_size // 64)
         result = self.decoder(result)
         result = self.final_layer(result)
         return result
