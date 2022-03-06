@@ -20,7 +20,7 @@ there are two stage for this method:
 
 use latent optimization for class supervision( not the amortized inference)
 
-all class embeddings and content embeddings  and the generator are jointly optimized.
+all class embeddings and content embeddings, and the generator are jointly optimized.
 
 class embedding and content embedding are from latent optimization
 
