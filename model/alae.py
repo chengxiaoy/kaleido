@@ -182,18 +182,17 @@ class Encoder(nn.Module):
 
 
 class ALAE(BaseVAE):
-    def __init__(self, code_dim=512, n_mlp=8, resolution=128):
+    def __init__(self, code_dim=512, n_mlp=8, resolution=128, start_channels=16):
         super(ALAE, self).__init__()
-
         t = [PixelNorm()]
         for i in range(n_mlp):
             t.append(EqualLinear(code_dim, code_dim))
             t.append(nn.LeakyReLU(0.2))
         self.trans = nn.Sequential(*t)
-
+        self.code_dim = code_dim
         self.generator = Generator(code_dim=code_dim)
 
-        self.encoder = Encoder(12, 512, layer_count=int(np.log2(128)) - 1, latent_size=code_dim)
+        self.encoder = Encoder(start_channels, code_dim, layer_count=int(np.log2(resolution)) - 1, latent_size=code_dim)
 
     def encode(self, input: Tensor) -> List[Tensor]:
         raise NotImplementedError
@@ -208,8 +207,10 @@ class ALAE(BaseVAE):
         raise NotImplementedError
 
     @abstractmethod
-    def forward(self, *inputs: Tensor) -> Tensor:
-        pass
+    def forward(self, x: Tensor):
+        batch_size = x.size(0)
+        z = torch.randn(batch_size,self.code_dim).to(device=self.)
+
 
     @abstractmethod
     def loss_function(self, *inputs: Any, **kwargs) -> Tensor:
@@ -218,7 +219,7 @@ class ALAE(BaseVAE):
 
 if __name__ == '__main__':
     resolution = 128
-    lay_count = int(np.log2(128)) - 1
+    lay_count = int(np.log2(resolution)) - 1
     encoder = Encoder(16, 512, layer_count=lay_count, latent_size=512)
     x = torch.randn(32, 3, resolution, resolution)
     w = encoder(x, lay_count - 1, 0)
