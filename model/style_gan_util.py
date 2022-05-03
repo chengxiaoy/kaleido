@@ -269,6 +269,7 @@ class AdaptiveInstanceNorm(nn.Module):
         super().__init__()
 
         self.norm = nn.InstanceNorm2d(in_channel)
+        #  affine
         self.style = EqualLinear(style_dim, in_channel * 2)
 
         self.style.linear.bias.data[:in_channel] = 1
@@ -501,6 +502,12 @@ class StyledGenerator(nn.Module):
         style = self.style(input).mean(0, keepdim=True)
 
         return style
+
+
+if __name__ == "__main__":
+    input = torch.randn(32, 512)
+    sg = StyledGenerator()
+    out = sg(input, step=1)
 
 
 class Discriminator(nn.Module):
