@@ -1,227 +1,168 @@
 import numpy as np
-
-from model import BaseVAE, EncoderBottleneck, DecoderBottleneck
-from model.types_ import Tensor
-from torch import nn
 import torch
-import torch.nn.functional as F
-from abc import abstractmethod
-from typing import Any, List
-from math import sqrt
-from style_gan_util import *
-from soft_intro_vae import DownResLayer
+from torch import nn
+from torch.autograd import grad
+
+from model.style_gan_util import Generator, F, PixelNorm, EqualConv2d, EqualLinear, ConvBlock
+from model.soft_intro_vae import DownResLayer
+import random
 
 
-def downscale2d(x, factor=2):
-    return F.avg_pool2d(x, factor, factor)
+class Trans(nn.Module):
+    def __init__(self, n_mlp, code_dim):
+        super(Trans, self).__init__()
+        layers = [PixelNorm()]
+        for i in range(n_mlp):
+            layers.append(EqualLinear(code_dim, code_dim))
+            layers.append(nn.LeakyReLU(0.2))
 
-
-class FromRGB(nn.Module):
-    def __init__(self, channels, outputs):
-        super(FromRGB, self).__init__()
-        self.from_rgb = EqualConv2d(channels, outputs, 1, 1, 0)
-
-    def forward(self, x):
-        x = self.from_rgb(x)
-        x = F.leaky_relu(x, 0.2)
-
-        return x
-
-
-class EncodeBlock(nn.Module):
-    def __init__(self, inputs, outputs, latent_size, last=False, fused_scale=True):
-        super(EncodeBlock, self).__init__()
-        self.conv_1 = EqualConv2d(inputs, inputs, 3, 1, 1)
-        # self.conv_1 = EqualConv2d(inputs + (1 if last else 0), inputs, 3, 1, 1, bias=False)
-        self.bias_1 = nn.Parameter(torch.Tensor(1, inputs, 1, 1))
-        self.instance_norm_1 = nn.InstanceNorm2d(inputs, affine=False)
-        self.blur = Blur(inputs)
-        self.last = last
-        self.fused_scale = fused_scale
-        if last:
-            self.dense = EqualLinear(inputs * 4 * 4, outputs)
-        else:
-            if fused_scale:
-                self.conv_2 = EqualConv2d(inputs, outputs, 3, 2, 1)
-            else:
-                self.conv_2 = EqualConv2d(inputs, outputs, 3, 1, 1)
-
-        self.bias_2 = nn.Parameter(torch.Tensor(1, outputs, 1, 1))
-        self.instance_norm_2 = nn.InstanceNorm2d(outputs, affine=False)
-        self.style_1 = EqualLinear(2 * inputs, latent_size)
-        if last:
-            self.style_2 = EqualLinear(outputs, latent_size)
-        else:
-            self.style_2 = EqualLinear(2 * outputs, latent_size)
-
-        with torch.no_grad():
-            self.bias_1.zero_()
-            self.bias_2.zero_()
+        self.style = nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.conv_1(x) + self.bias_1
-        x = F.leaky_relu(x, 0.2)
-
-        m = torch.mean(x, dim=[2, 3], keepdim=True)
-        std = torch.sqrt(torch.mean((x - m) ** 2, dim=[2, 3], keepdim=True))
-        style_1 = torch.cat((m, std), dim=1)
-
-        x = self.instance_norm_1(x)
-
-        if self.last:
-            x = self.dense(x.view(x.shape[0], -1))
-
-            x = F.leaky_relu(x, 0.2)
-            w1 = self.style_1(style_1.view(style_1.shape[0], style_1.shape[1]))
-            w2 = self.style_2(x.view(x.shape[0], x.shape[1]))
-        else:
-            x = self.conv_2(self.blur(x))
-            if not self.fused_scale:
-                x = downscale2d(x)
-            x = x + self.bias_2
-
-            x = F.leaky_relu(x, 0.2)
-
-            m = torch.mean(x, dim=[2, 3], keepdim=True)
-            std = torch.sqrt(torch.mean((x - m) ** 2, dim=[2, 3], keepdim=True))
-            style_2 = torch.cat((m, std), dim=1)
-
-            x = self.instance_norm_2(x)
-
-            w1 = self.style_1(style_1.view(style_1.shape[0], style_1.shape[1]))
-            w2 = self.style_2(style_2.view(style_2.shape[0], style_2.shape[1]))
-
-        return x, w1, w2
+        return self.style(x)
 
 
 class Encoder(nn.Module):
-    def __init__(self, startf, maxf, layer_count, latent_size, channels=3):
+
+    def __init__(self, code_dim, from_rgb_activate=False, fused=True):
         super(Encoder, self).__init__()
-        self.maxf = maxf
-        self.startf = startf
-        self.layer_count = layer_count
-        self.from_rgb: nn.ModuleList[FromRGB] = nn.ModuleList()
-        self.channels = channels
-        self.latent_size = latent_size
+        self.progression = nn.ModuleList(
+            [
+                ConvBlock(16, 32, 3, 1, downsample=True, fused=fused),  # 512
+                ConvBlock(32, 64, 3, 1, downsample=True, fused=fused),  # 256
+                ConvBlock(64, 128, 3, 1, downsample=True, fused=fused),  # 128
+                ConvBlock(128, 256, 3, 1, downsample=True, fused=fused),  # 64
+                ConvBlock(256, 512, 3, 1, downsample=True),  # 32
+                ConvBlock(512, 512, 3, 1, downsample=True),  # 16
+                ConvBlock(512, 512, 3, 1, downsample=True),  # 8
+                ConvBlock(512, 512, 3, 1, downsample=True),  # 4
+                ConvBlock(513, 512, 3, 1, 4, 0),
+            ]
+        )
 
-        mul = 2
-        inputs = startf
-        self.encode_block: nn.ModuleList[EncodeBlock] = nn.ModuleList()
+        def make_from_rgb(out_channel):
+            if from_rgb_activate:
+                return nn.Sequential(EqualConv2d(3, out_channel, 1), nn.LeakyReLU(0.2))
 
-        resolution = 2 ** (self.layer_count + 1)
+            else:
+                return EqualConv2d(3, out_channel, 1)
 
-        for i in range(self.layer_count):
-            outputs = min(self.maxf, startf * mul)
+        self.from_rgb = nn.ModuleList(
+            [
+                make_from_rgb(16),
+                make_from_rgb(32),
+                make_from_rgb(64),
+                make_from_rgb(128),
+                make_from_rgb(256),
+                make_from_rgb(512),
+                make_from_rgb(512),
+                make_from_rgb(512),
+                make_from_rgb(512),
+            ]
+        )
 
-            self.from_rgb.append(FromRGB(channels, inputs))
+        self.n_layer = len(self.progression)
 
-            fused_scale = resolution >= 128
+        self.linear = EqualLinear(512, code_dim)
 
-            block = EncodeBlock(inputs, outputs, latent_size, False, fused_scale=fused_scale)
+    def forward(self, input, step=0, alpha=-1):
+        for i in range(step, -1, -1):
+            index = self.n_layer - i - 1
 
-            resolution //= 2
+            if i == step:
+                out = self.from_rgb[index](input)
 
-            # print("encode_block%d %s styles out: %d" % ((i + 1), millify(count_parameters(block)), inputs))
-            self.encode_block.append(block)
-            inputs = outputs
-            mul *= 2
+            if i == 0:
+                out_std = torch.sqrt(out.var(0, unbiased=False) + 1e-8)
+                mean_std = out_std.mean()
+                mean_std = mean_std.expand(out.size(0), 1, 4, 4)
+                out = torch.cat([out, mean_std], 1)
 
-    def encode(self, x, lod):
-        styles = torch.zeros(x.shape[0], 1, self.latent_size)
+            out = self.progression[index](out)
 
-        x = self.from_rgb[self.layer_count - lod - 1](x)
-        x = F.leaky_relu(x, 0.2)
+            if i > 0:
+                if i == step and 0 <= alpha < 1:
+                    skip_rgb = F.avg_pool2d(input, 2)
+                    skip_rgb = self.from_rgb[index + 1](skip_rgb)
 
-        for i in range(self.layer_count - lod - 1, self.layer_count):
-            x, s1, s2 = self.encode_block[i](x)
-            styles[:, 0] += s1 + s2
+                    out = (1 - alpha) * skip_rgb + alpha * out
 
-        return styles
+        out = out.squeeze(2).squeeze(2)
+        # print(input.size(), out.size(), step)
+        out = self.linear(out)
 
-    def encode2(self, x, lod, blend):
-        x_orig = x
-        styles = torch.zeros(x.shape[0], 1, self.latent_size)
-
-        x = self.from_rgb[self.layer_count - lod - 1](x)
-        x = F.leaky_relu(x, 0.2)
-
-        x, s1, s2 = self.encode_block[self.layer_count - lod - 1](x)
-        styles[:, 0] += s1 * blend + s2 * blend
-
-        x_prev = F.avg_pool2d(x_orig, 2, 2)
-
-        x_prev = self.from_rgb[self.layer_count - (lod - 1) - 1](x_prev)
-        x_prev = F.leaky_relu(x_prev, 0.2)
-
-        x = torch.lerp(x_prev, x, blend)
-
-        for i in range(self.layer_count - (lod - 1) - 1, self.layer_count):
-            x, s1, s2 = self.encode_block[i](x)
-            styles[:, 0] += s1 + s2
-
-        return styles
-
-    def forward(self, x, lod, blend):
-        if blend == 1:
-            return self.encode(x, lod)
-        else:
-            return self.encode2(x, lod, blend)
-
-    def get_statistics(self, lod):
-        rgb_std = self.from_rgb[self.layer_count - lod - 1].from_rgb.weight.std().item()
-        rgb_std_c = self.from_rgb[self.layer_count - lod - 1].from_rgb.std
-
-        layers = []
-        for i in range(self.layer_count - lod - 1, self.layer_count):
-            conv_1 = self.encode_block[i].conv_1.weight.std().item()
-            conv_1_c = self.encode_block[i].conv_1.std
-            conv_2 = self.encode_block[i].conv_2.weight.std().item()
-            conv_2_c = self.encode_block[i].conv_2.std
-            layers.append(((conv_1 / conv_1_c), (conv_2 / conv_2_c)))
-        return rgb_std / rgb_std_c, layers
+        return out
 
 
-class ALAE(BaseVAE):
-    def __init__(self, code_dim=512, n_mlp=8, resolution=128, start_channels=16):
+class Discriminator(nn.Module):
+    def __init__(self, code_dim):
+        super(Discriminator, self).__init__()
+        self.linear = EqualLinear(code_dim, 1)
+
+    def forward(self, x):
+        return self.linear(x)
+
+
+class ALAE(nn.Module):
+
+    def __init__(self, code_dim, n_mlp=8, **param):
         super(ALAE, self).__init__()
-        t = [PixelNorm()]
-        for i in range(n_mlp):
-            t.append(EqualLinear(code_dim, code_dim))
-            t.append(nn.LeakyReLU(0.2))
-        self.trans = nn.Sequential(*t)
-        self.code_dim = code_dim
-        self.generator = Generator(code_dim=code_dim)
 
-        self.encoder = Encoder(start_channels, code_dim, layer_count=int(np.log2(resolution)) - 1, latent_size=code_dim)
+        self.t = Trans(n_mlp, code_dim)
 
-    def encode(self, input: Tensor) -> List[Tensor]:
-        raise NotImplementedError
+        self.generator = Generator(code_dim)
 
-    def decode(self, input: Tensor) -> Any:
-        raise NotImplementedError
+        self.encoder = Encoder(code_dim=code_dim)
 
-    def sample(self, batch_size: int, current_device: int, **kwargs) -> Tensor:
-        raise NotImplementedError
+        self.discriminator = Discriminator(code_dim=code_dim)
 
-    def generate(self, x: Tensor, **kwargs) -> Tensor:
-        raise NotImplementedError
+    def trans(self, z):
+        return self.t(z)
 
-    @abstractmethod
-    def forward(self, x: Tensor):
-        batch_size = x.size(0)
-        z = torch.randn(batch_size,self.code_dim).to(device=self.)
+    def generate(self, w, batch, noise=None,
+                 step=0, mean_style=None, style_weight=0,
+                 mixing_range=(-1, -1), alpha=-1):
 
+        styles = w
 
-    @abstractmethod
-    def loss_function(self, *inputs: Any, **kwargs) -> Tensor:
-        pass
+        if noise is None:
+            noise = []
+
+            for i in range(step + 1):
+                size = 4 * 2 ** i
+                noise.append(torch.randn(batch, 1, size, size, device=styles[0].device))
+
+        if mean_style is not None:
+            styles_norm = []
+
+            for style in styles:
+                styles_norm.append(mean_style + style_weight * (style - mean_style))
+
+            styles = styles_norm
+
+        return self.generator(styles, noise, step, alpha, mixing_range=mixing_range)
+
+    def encode(self, x, step, alpha):
+        return self.encoder(x, step, alpha)
+
+    def discriminate(self, w):
+        return self.discriminator(w)
 
 
 if __name__ == '__main__':
     resolution = 128
-    lay_count = int(np.log2(resolution)) - 1
-    encoder = Encoder(16, 512, layer_count=lay_count, latent_size=512)
-    x = torch.randn(32, 3, resolution, resolution)
-    w = encoder(x, lay_count - 1, 0)
-    print(w.shape)
-    print(torch.flatten(w, start_dim=1))
+    batch_size = 32
+    code_dim = 512
+    step = int(np.log2(resolution)) - 2
+    z = torch.randn(batch_size, code_dim)
+    param = {"n_mlp": 8}
+    model = ALAE(code_dim=code_dim, **param)
+    w = model.trans(z)
+    x = model.generate([w], batch=batch_size, step=step)
+    w_ = model.encode(x, step=step,alpha=1)
+    y = model.discriminate(w_)
+    print(z.size())
+    print(w.size())
+    print(w_.size())
+    print(x.size())
+    print(y.size())

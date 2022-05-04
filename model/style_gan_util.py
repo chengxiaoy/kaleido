@@ -269,6 +269,7 @@ class AdaptiveInstanceNorm(nn.Module):
         super().__init__()
 
         self.norm = nn.InstanceNorm2d(in_channel)
+        #  affine
         self.style = EqualLinear(style_dim, in_channel * 2)
 
         self.style.linear.bias.data[:in_channel] = 1
@@ -377,15 +378,15 @@ class Generator(nn.Module):
 
         self.progression = nn.ModuleList(
             [
-                StyledConvBlock(512, 512, 3, 1, initial=True),  # 4
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 8
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 16
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 32
-                StyledConvBlock(512, 256, 3, 1, upsample=True),  # 64
-                StyledConvBlock(256, 128, 3, 1, upsample=True, fused=fused),  # 128
-                StyledConvBlock(128, 64, 3, 1, upsample=True, fused=fused),  # 256
-                StyledConvBlock(64, 32, 3, 1, upsample=True, fused=fused),  # 512
-                StyledConvBlock(32, 16, 3, 1, upsample=True, fused=fused),  # 1024
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim, initial=True),  # 4
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim, upsample=True),  # 8
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim, upsample=True),  # 16
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim, upsample=True),  # 32
+                StyledConvBlock(512, 256, 3, 1, style_dim=code_dim, upsample=True),  # 64
+                StyledConvBlock(256, 128, 3, 1, style_dim=code_dim, upsample=True, fused=fused),  # 128
+                StyledConvBlock(128, 64, 3, 1, style_dim=code_dim, upsample=True, fused=fused),  # 256
+                StyledConvBlock(64, 32, 3, 1, style_dim=code_dim, upsample=True, fused=fused),  # 512
+                StyledConvBlock(32, 16, 3, 1, style_dim=code_dim, upsample=True, fused=fused),  # 1024
             ]
         )
 

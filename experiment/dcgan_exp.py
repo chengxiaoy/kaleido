@@ -109,7 +109,6 @@ class DCGANExperiment(pl.LightningModule):
 
         return optims
 
-    @pl.data_loader
     def train_dataloader(self):
 
         dataset = datasets.ImageFolder(root=self.params['data_path'],
@@ -122,7 +121,6 @@ class DCGANExperiment(pl.LightningModule):
         return torch.utils.data.DataLoader(dataset, batch_size=self.params['batch_size'], shuffle=True,
                                            num_workers=self.params['work_num'], drop_last=True)
 
-    @pl.data_loader
     def val_dataloader(self):
         return self.train_dataloader()
 

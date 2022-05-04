@@ -1,0 +1,25 @@
+model_params:
+  name: 'ALAE'
+  code_dim: 128
+
+
+exp_params:
+  alpha: 1
+  mixing: False
+  loss: 'r1'
+  code_dim: 128
+  data_set: "ffhq"
+  resolution: 64
+  batch_size: 32 # Better to have a square number
+  sample_batch_size: 36
+  LR: 0.0015
+
+
+trainer_params:
+  gpus: 1
+  max_epochs: 30
+
+logging_params:
+  save_dir: "logs/"
+  name: "ALAE"
+  manual_seed: 1265

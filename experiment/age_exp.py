@@ -131,11 +131,9 @@ class AGEExperiment(pl.LightningModule):
         optims.append(d_optimizer)
         return optims, scheds
 
-    @pl.data_loader
     def train_dataloader(self):
         return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="train")
 
-    @pl.data_loader
     def val_dataloader(self):
         return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="valid")
 

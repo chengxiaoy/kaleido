@@ -8,6 +8,7 @@ from io import BytesIO
 from PIL import Image
 
 celebA_data_path = "/data/kaggle/shared/Data/"
+ffhq_lmdb_data_path = "/data/kaggle/shared/Data/ffhq_lmdb"
 
 
 def data_transforms(img_size):
@@ -33,13 +34,14 @@ ffhq_t = transforms.Compose(
     [
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+        transforms.Lambda(lambda X: 2 * X - 1.)
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
     ]
 )
 
 
-def get_ffhq_dataloader(path: str, resolution: int, batch_size: int, transform=ffhq_t, split="train"):
-    dataset = MultiResolutionDataset(path, transform)
+def get_ffhq_dataloader(resolution: int, batch_size: int, transform=ffhq_t, split="train"):
+    dataset = MultiResolutionDataset(ffhq_lmdb_data_path, transform)
     dataset.resolution = resolution
     length = len(dataset)
     train_size, validate_size = int(0.8 * length), int(0.2 * length)
