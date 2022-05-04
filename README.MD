@@ -14,4 +14,5 @@ datasets: celebA, ffhq
 - IntroVAE _done_
 - StyleGAN _done_
 - infoVAE
+- ALAE _done_
 

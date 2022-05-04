@@ -105,10 +105,10 @@ class Discriminator(nn.Module):
 
 class ALAE(nn.Module):
 
-    def __init__(self, code_dim, **param):
+    def __init__(self, code_dim, n_mlp=8, **param):
         super(ALAE, self).__init__()
 
-        self.t = Trans(param["n_mlp"], code_dim)
+        self.t = Trans(n_mlp, code_dim)
 
         self.generator = Generator(code_dim)
 
@@ -142,8 +142,8 @@ class ALAE(nn.Module):
 
         return self.generator(styles, noise, step, alpha, mixing_range=mixing_range)
 
-    def encode(self, x, step):
-        return self.encoder(x, step)
+    def encode(self, x, step, alpha):
+        return self.encoder(x, step, alpha)
 
     def discriminate(self, w):
         return self.discriminator(w)
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     model = ALAE(code_dim=code_dim, **param)
     w = model.trans(z)
     x = model.generate([w], batch=batch_size, step=step)
-    w_ = model.encode(x, step=step)
+    w_ = model.encode(x, step=step,alpha=1)
     y = model.discriminate(w_)
     print(z.size())
     print(w.size())

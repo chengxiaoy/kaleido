@@ -44,9 +44,9 @@ def get_ffhq_dataloader(path: str, resolution: int, batch_size: int, transform=f
     train_size, validate_size = int(0.8 * length), int(0.2 * length)
     train_set, validate_set = random_split(dataset, [train_size + 1, validate_size])
     if split == "train":
-        return DataLoader(train_set, shuffle=True, batch_size=batch_size, num_workers=4, drop_last=True)
+        return DataLoader(train_set, shuffle=True, batch_size=batch_size, num_workers=0, drop_last=True)
     if split == "val":
-        return DataLoader(validate_set, shuffle=True, batch_size=batch_size, num_workers=4, drop_last=True)
+        return DataLoader(validate_set, shuffle=True, batch_size=batch_size, num_workers=0, drop_last=True)
     return None
 
 

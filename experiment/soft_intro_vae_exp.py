@@ -178,14 +178,12 @@ class SOFT_INTRO_VAEExperiment(pl.LightningModule):
         optims.append(d_optimizer)
         return optims, scheds
 
-    @pl.data_loader
     def train_dataloader(self):
         if self.params['dataset'] == 'ffhq':
             return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],
                                        self.params["batch_size"], split="train")
         return get_celebA_dataloader(self.params["image_size"], self.params["batch_size"], split="train")
 
-    @pl.data_loader
     def val_dataloader(self):
         if self.params['dataset'] == 'ffhq':
             return get_ffhq_dataloader(self.params['ffhq_data_path'], self.params["image_size"],

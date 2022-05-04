@@ -6,3 +6,4 @@ from experiment.experiment import VAEXperiment
 from experiment.gan_vae_exp import GanVaeExperiment
 from experiment.intro_vae_exp import INTRO_VAEExperiment
 from experiment.vee_gan_exp import VEEGANExperiment
+from experiment.alae_exp import ALAE_Experiment
