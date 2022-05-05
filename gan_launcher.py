@@ -1,3 +1,4 @@
+import torch
 import yaml
 import argparse
 import numpy as np
@@ -37,9 +38,11 @@ cudnn.deterministic = True
 cudnn.benchmark = False
 
 model = vae_models[config['model_params']['name']](**config['model_params'])
-experiment = ALAE_Experiment(model, config['exp_params'])
+# experiment = ALAE_Experiment(model, config['exp_params'])
+experiment = ALAE_Experiment.load_from_checkpoint("logs/ALAE/version_10/epoch=4-step=6499.ckpt", model=model,
+                                                  params=config['exp_params'])
 
-checkpoint_callback = ModelCheckpoint(dirpath="./logs/ALAE", every_n_epochs=1)
+checkpoint_callback = ModelCheckpoint(dirpath=tb_logger.log_dir, every_n_epochs=1)
 
 runner = Trainer(callbacks=[checkpoint_callback],
                  min_epochs=1,

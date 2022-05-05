@@ -1,4 +1,5 @@
 import numpy as np
+import pytorch_lightning
 import torch
 from torch import nn
 from torch.autograd import grad
@@ -103,7 +104,7 @@ class Discriminator(nn.Module):
         return self.linear(x)
 
 
-class ALAE(nn.Module):
+class ALAE(pytorch_lightning.LightningModule):
 
     def __init__(self, code_dim, n_mlp=8, **param):
         super(ALAE, self).__init__()
