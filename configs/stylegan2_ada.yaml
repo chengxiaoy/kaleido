@@ -1,5 +1,5 @@
 model_params:
-  name: 'ALAE'
+  name: 'StyleGAN2_ADA'
   code_dim: 512
 
 
@@ -10,9 +10,9 @@ exp_params:
   code_dim: 512
   data_set: "beauty"
   resolution: 64
-  batch_size: 16 # Better to have a square number
+  batch_size: 8 # Better to have a square number
   sample_batch_size: 36
-  LR: 0.0015
+  LR: 0.002
 
 
 trainer_params:
@@ -21,5 +21,5 @@ trainer_params:
 
 logging_params:
   save_dir: "logs/"
-  name: "ALAE"
+  name: "StyleGAN2_ADA"
   manual_seed: 1265

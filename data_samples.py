@@ -9,6 +9,7 @@ from PIL import Image
 
 celebA_data_path = "/data/kaggle/shared/Data/"
 ffhq_lmdb_data_path = "/data/kaggle/shared/Data/ffhq_lmdb"
+beauty_lmdb_data_path = "/data/kaggle/shared/Data/meinv_superior_lmdb"
 
 
 def data_transforms(img_size):
@@ -52,6 +53,18 @@ def get_ffhq_dataloader(resolution: int, batch_size: int, transform=ffhq_t, spli
         return DataLoader(validate_set, shuffle=True, batch_size=batch_size, num_workers=4, drop_last=True)
     return None
 
+
+def get_beauty_dataloader(resolution: int, batch_size: int, transform=ffhq_t, split="train"):
+    dataset = MultiResolutionDataset(beauty_lmdb_data_path, transform)
+    dataset.resolution = resolution
+    length = len(dataset)
+    train_size, validate_size = int(0.9 * length), int(0.1 * length)
+    train_set, validate_set = random_split(dataset, [train_size + 1, validate_size])
+    if split == "train":
+        return DataLoader(train_set, shuffle=True, batch_size=batch_size, num_workers=4, drop_last=True)
+    if split == "val":
+        return DataLoader(validate_set, shuffle=True, batch_size=batch_size, num_workers=4, drop_last=True)
+    return None
 
 class MultiResolutionDataset(Dataset):
     def __init__(self, path, transform, resolution=8):
