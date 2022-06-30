@@ -73,23 +73,31 @@ we need to learn  a neural network to approximate the conditioned probability di
 
 
 
+### DDPMs (Denoising Diffusion Probabilistic Models)
+
+the most straightforward parameterization of $\mu_\theta$ is a model that predicts $\widetilde{\mu}_{t}$
+
 we can reparameterize the Gaussian noise term instead to make it predict $z_{t}$ from the $x_{t}$
 
 ![loss](./pic/DDPM_6.png)
 
 
 
-training the model works better with a simplified objective that ignores the weighting term.
+**DDPM** found training the model works better with a simplified objective that ignores the weighting term.
 $$
 L_{t}^{simple} = E_{x_{0},z_{t}}[||z_{t}-z_{\theta}(\sqrt{\overline{a}_{t}}x_{0}+\sqrt{1-\overline{a}_{t}}z_{t},t)||^{2}]
 $$
 
 
-### Training and Sampling
+### Training and Sampling(DDPMs)
 
-so the training and sampling process could be
+so the training and sampling process could be in **DDPM**
 
 ![training and sampling](./pic/DDPM_7.png)
+
+the Algorithm 2 sampling resembles Langevin dynamics $\epsilon_{\theta}$ as a learned  gradient of the data density
+
+
 
 
 
@@ -101,3 +109,16 @@ note that the noise is a tensor that has the same size as the input image
 
 DDPM use the U-Net architecture, this architecture like any autoencoder and introduced residual connections between the encoder and decoder, greatly improve the gradient flow
 
+
+
+
+
+### Connection between diffusion probabilistic models and denoising score matching with Langevin dynamics
+
+
+
+
+
+
+
+ 
