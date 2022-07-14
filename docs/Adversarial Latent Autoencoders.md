@@ -32,6 +32,8 @@ $$
  min_{F,G}max_{E,D}V(G\circ F,D\circ E)  + min_{E,G}\Delta(F||E\circ G \circ F)
 $$
 
+**training producer**
+![alae_training](./pic/alae_train.png)
 
 通过 adversarial 的方式学习data distribution 同时 $\Delta(p||q)$ 表示discrepancy between two distributions $p$ and $q$
 

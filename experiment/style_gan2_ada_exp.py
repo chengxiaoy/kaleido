@@ -5,7 +5,7 @@ import torch
 from pytorch_lightning.utilities.types import STEP_OUTPUT, EPOCH_OUTPUT
 from torch.optim.adam import Adam
 from torch import optim
-from model.alae import ALAE
+from model.style_gan2_ada import Generator, Discriminator
 import pytorch_lightning as pl
 import torchvision.utils as vutils
 from data_samples import get_celebA_dataloader, get_ffhq_dataloader, get_beauty_dataloader
@@ -13,15 +13,22 @@ from torch.nn import functional as F
 import random
 from torch.autograd import grad
 from torchvision import utils
+import dnnlib
+from torch_utils.augmentation import AugmentPipe
+
+# ------
+from torch_utils.ops import conv2d_gradfix
+from torch_utils.ops import grid_sample_gradfix
+
+conv2d_gradfix.enabled = False
+grid_sample_gradfix.enabled = False
 
 
-class ALAE_Experiment(pl.LightningModule):
+class StyleGAN2_ADA_Experiment(pl.LightningModule):
 
-    def __init__(self, model: ALAE, params: dict) -> None:
-        super(ALAE_Experiment, self).__init__()
-        self.model = model
+    def __init__(self, params: dict) -> None:
+        super(StyleGAN2_ADA_Experiment, self).__init__()
         self.code_size = params['code_dim']
-
         self.params = params
         self.resolution = params['resolution']
         self.step = int(np.log2(self.resolution)) - 2
@@ -32,6 +39,24 @@ class ALAE_Experiment(pl.LightningModule):
         self.batch_size = params['batch_size']
         self.data_set = params['data_set']
         self.lr = params['LR']
+
+        synthesis_kwargs = dnnlib.EasyDict()
+        synthesis_kwargs.channel_base = 32768
+        synthesis_kwargs.channel_max = 512
+        synthesis_kwargs.num_fp16_res = 0  # enable mixed-precision training
+        synthesis_kwargs.conv_clamp = None
+        mapping_kwargs = dnnlib.EasyDict()
+        mapping_kwargs.num_layers = 8
+        self.G = Generator(z_dim=self.code_size, c_dim=0, w_dim=self.code_size, img_resolution=self.resolution,
+                           img_channels=3,
+                           synthesis_kwargs=synthesis_kwargs, mapping_kwargs=mapping_kwargs)
+
+        self.D = Discriminator(c_dim=0, img_resolution=self.resolution, img_channels=3,
+                               epilogue_kwargs={"mbstd_group_size": 4})
+
+        aug_params = dict(xflip=1, rotate90=1, xint=1, scale=1, rotate=1, aniso=1, xfrac=1, brightness=1, contrast=1,
+                          lumaflip=1, hue=1, saturation=1)
+        self.aug = AugmentPipe(**aug_params)
 
     def train_dataloader(self):
         if self.data_set == 'celeba':
@@ -62,16 +87,12 @@ class ALAE_Experiment(pl.LightningModule):
             gen_in1 = gen_in1.squeeze(0)
             gen_in2 = gen_in2.squeeze(0)
 
-        # train F & G
+        # train G
         if optimizer_idx == 1:
             origin_z = gen_in1
 
-            w = self.model.trans(origin_z)
-            x = self.model.generate([w], batch=batch_size, step=step)
-            w_ = self.model.encode(x, step=step, alpha=alpha)
-            # recipient loss in latent space
-            # w_recons_loss = self.reconstruction_loss(w_, w, size_average=True)
-            y = self.model.discriminate(w_)
+            fake_imgs = self.G(origin_z, c=None)
+            y = self.D(fake_imgs, None)
 
             if self.loss_type == 'r1':
                 generator_loss = F.softplus(-y).mean()
@@ -80,19 +101,19 @@ class ALAE_Experiment(pl.LightningModule):
             self.logger.log_metrics({"loss": generator_loss}, step=batch_idx)
             return {"loss": generator_loss}
 
-        # train E & D
+        # train D
         if optimizer_idx == 0:
             origin_z = gen_in2
 
             # discriminator real image
             if self.loss_type == 'wgan-gp':
-                real_predict = self.model.discriminate(self.model.encode(real_img, step=step, alpha=alpha))
+                real_predict = self.D(real_img, None)
                 real_predict = real_predict.mean() - 0.001 * (real_predict ** 2).mean()
                 dis_real_loss = -real_predict
 
             elif self.loss_type == 'r1':
                 real_img.requires_grad = True
-                real_scores = self.model.discriminate(self.model.encode(real_img, step=step, alpha=alpha))
+                real_scores = self.D(real_img, None)
                 real_predict = F.softplus(-real_scores).mean()
                 dis_real_loss = real_predict
                 # real_predict.backward(retain_graph=True)
@@ -106,11 +127,8 @@ class ALAE_Experiment(pl.LightningModule):
                 grad_penalty = 10 / 2 * grad_penalty
                 # grad_penalty.backward()
 
-            w = self.model.trans(origin_z)
-            fake_image = self.model.generate([w], batch=batch_size, step=step)
-            w_ = self.model.encode(fake_image, step=step, alpha=alpha)
-            w_recons_loss = self.reconstruction_loss(w_, w, size_average=True)
-            fake_predict = self.model.discriminate(w_)
+            fake_image = self.G(origin_z, c=None)
+            fake_predict = self.D(fake_image, None)
 
             # fake_image = self.model.generate([self.model.trans(origin_z)], step=step, alpha=alpha, batch=batch_size)
             # fake_predict = self.model.discriminate(self.model.encode(fake_image, step=step, alpha=alpha))
@@ -142,21 +160,8 @@ class ALAE_Experiment(pl.LightningModule):
             self.logger.log_metrics({"d_f_loss": dis_fake_loss,
                                      "d_r_loss": dis_real_loss,
                                      "d_p_loss": grad_penalty,
-                                     "w_recons_loss": w_recons_loss
                                      }, step=batch_idx)
-            return {"loss": dis_fake_loss + dis_real_loss + grad_penalty + w_recons_loss}
-
-        # train G & E
-        if optimizer_idx == 2:
-            origin_z = gen_in2
-            w = self.model.trans(origin_z)
-            fake_image = self.model.generate([w], batch=batch_size, step=step)
-            w_ = self.model.encode(fake_image, step=step, alpha=alpha)
-            # recipient loss in latent space
-            w_recons_loss = self.reconstruction_loss(w_, w, size_average=True)
-
-            self.logger.log_metrics({"w_recons_loss": w_recons_loss}, step=batch_idx)
-            return {"loss": w_recons_loss}
+            return {"loss": dis_fake_loss + dis_real_loss + grad_penalty}
 
     def sample_data(self, epoch):
         # sample pic
@@ -165,10 +170,7 @@ class ALAE_Experiment(pl.LightningModule):
         with torch.no_grad():
             for _ in range(gen_i):
                 images.append(
-                    self.model.generate(
-                        [self.model.trans(torch.randn(gen_j, self.code_size).cuda())], batch=gen_j, step=self.step,
-                        alpha=self.alpha
-                    ).data.cpu()
+                    self.G(torch.randn(gen_j, self.code_size).to(self.device), c=None).data.cpu()
                 )
         utils.save_image(
             torch.cat(images, 0),
@@ -212,25 +214,14 @@ class ALAE_Experiment(pl.LightningModule):
     def configure_optimizers(self):
 
         d_optimizer = optim.Adam([{
-            "params": self.model.discriminator.parameters()
-        }, {
-            "params": self.model.encoder.parameters()
+            "params": self.D.parameters()
         }
         ], lr=self.lr, betas=(0.0, 0.99))
 
         g_optimizer = optim.Adam(
-            self.model.generator.parameters(), lr=self.lr, betas=(0.0, 0.99)
+            self.G.parameters(), lr=self.lr, betas=(0.0, 0.99)
         )
-        g_optimizer.add_param_group(
-            {
-                'params': self.model.t.parameters(),
-                'lr': self.lr * 0.01,
-            }
-        )
-        ae_optimizer = optim.Adam([{
-            "params": self.model.encoder.parameters()
-        }
-        ], lr=self.lr, betas=(0.0, 0.99))
+
         return [d_optimizer, g_optimizer]
 
     def kl_loss(self, mu, logvar, prior_mu=0):
