@@ -43,7 +43,7 @@ a nice property is that we can sample $x_{t}$ at any arbitrary time step $t$ in 
 $$
 x_{t}= \sqrt{a_{t}}x_{t-1}+\sqrt{1-a_{t}}z_{t-1}
 \\= \sqrt{\overline{a}_{t}}x_{0}+\sqrt{1-\overline{a}_{t}}z
-\\ q(x_{t}||x_{0}) = N(x_{t};\sqrt{\overline{a}_{t}}{x_{0}},(1-\overline{a}_{t})I)
+\\ q(x_{t}|x_{0}) = N(x_{t};\sqrt{\overline{a}_{t}}{x_{0}},(1-\overline{a}_{t})I)
 $$
 
 
