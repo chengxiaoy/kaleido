@@ -53,5 +53,5 @@ runner = Trainer(callbacks=[checkpoint_callback],
                  **config['trainer_params'])
 
 print(f"======= Training {config['model_params']['name']} =======")
-runner.fit(experiment,ckpt_path="logs/StyleGAN2_ADA/version_0/epoch=68-step=69276.ckpt")
+runner.fit(experiment)
 # runner.fit(experiment, ckpt_path="logs/ALAE/version_20/epoch=111-step=28111.ckpt")

@@ -1,9 +1,11 @@
-from model import BaseVAE, INTRO_VAE
-from model.types_ import Tensor
-from torch import nn
+from typing import List, Any
+
 import torch
 import torch.nn.functional as F
-from typing import List, Any
+from torch import nn
+
+from model import BaseVAE
+from model.types_ import Tensor
 
 
 class ResBlock(nn.Module):
@@ -149,12 +151,15 @@ class SOFT_INTRO_VAE(BaseVAE):
     def generate(self, x: Tensor, **kwargs) -> Tensor:
         return self.forward(x)[3]
 
-    def kl_loss(self, mu, logvar, prior_mu=0):
+    def kl_loss(self, mu, logvar, prior_mu=0, mean=True):
         v_kl = mu.add(-prior_mu).pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
         v_kl = v_kl.sum(dim=-1).mul_(-0.5)  # (batch, 2)
-        return v_kl.mean()
+        if mean:
+            return v_kl.mean()
+        else:
+            return v_kl.sum()
 
-    def reconstruction_loss(self, prediction, target, size_average=False):
+    def reconstruction_loss(self, prediction, target, size_average=True):
         error = (prediction - target).view(prediction.size(0), -1)
         error = error ** 2
         error = torch.sum(error, dim=-1)
@@ -165,6 +170,54 @@ class SOFT_INTRO_VAE(BaseVAE):
             error = error.sum()
 
         return error
+
+    def calc_reconstruction_loss(self, x, recon_x, loss_type='mse', reduction='sum'):
+        """
+
+        :param x: original inputs
+        :param recon_x:  reconstruction of the VAE's input
+        :param loss_type: "mse", "l1", "bce"
+        :param reduction: "sum", "mean", "none"
+        :return: recon_loss
+        """
+        if reduction not in ['sum', 'mean', 'none']:
+            raise NotImplementedError
+        recon_x = recon_x.view(recon_x.size(0), -1)
+        x = x.view(x.size(0), -1)
+        if loss_type == 'mse':
+            recon_error = F.mse_loss(recon_x, x, reduction='none')
+            recon_error = recon_error.sum(1)
+            if reduction == 'sum':
+                recon_error = recon_error.sum()
+            elif reduction == 'mean':
+                recon_error = recon_error.mean()
+        elif loss_type == 'l1':
+            recon_error = F.l1_loss(recon_x, x, reduction=reduction)
+        elif loss_type == 'bce':
+            recon_error = F.binary_cross_entropy(recon_x, x, reduction=reduction)
+        else:
+            raise NotImplementedError
+        return recon_error
+
+    def calc_kl(self, logvar, mu, mu_o=10, is_outlier=False, reduce='sum'):
+        """
+        Calculate kl-divergence
+        :param logvar: log-variance from the encoder
+        :param mu: mean from the encoder
+        :param mu_o: negative mean for outliers (hyper-parameter)
+        :param is_outlier: if True, calculates with mu_neg
+        :param reduce: type of reduce: 'sum', 'none'
+        :return: kld
+        """
+        if is_outlier:
+            kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp() + 2 * mu * mu_o - mu_o.pow(2)).sum(1)
+        else:
+            kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(1)
+        if reduce == 'sum':
+            kl = torch.sum(kl)
+        elif reduce == 'mean':
+            kl = torch.mean(kl)
+        return kl
 
 
 def match(x, y, dist):
