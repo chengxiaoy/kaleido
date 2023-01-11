@@ -20,7 +20,7 @@ t = transforms.Compose(
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         # transforms.Lambda(lambda X: 2 * X - 1.)
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
     ]
 )
 train_dataloader = get_beauty_dataloader(resolution, batch_size, transform=t)

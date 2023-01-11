@@ -35,8 +35,8 @@ ffhq_t = transforms.Compose(
     [
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Lambda(lambda X: 2 * X - 1.)
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+        # transforms.Lambda(lambda X: 2 * X - 1.),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
     ]
 )
 
@@ -99,3 +99,8 @@ class MultiResolutionDataset(Dataset):
         img = self.transform(img)
 
         return img, 1
+
+from diffusers import PNDMScheduler
+from diffusers import StableDiffusionPipeline
+
+StableDiffusionPipeline.from_pretrained()
