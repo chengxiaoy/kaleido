@@ -22,7 +22,7 @@ the difference of these two model is that the former only optimize the embedding
 
 for Textual Inversion, the model aim to learn the embedding of a new token which represent the visual concept
 
-![Textual Inversion_1](/home/yons/PycharmProjects/ethan-vae/docs/pic/Textual_Inversion_1.png)
+![Textual Inversion_1](pic/Textual_Inversion_1.png)
 
 as shown in the figure, the model optimize the embedding vector $v_{*}$ by the reconstruction objective.
 
@@ -30,4 +30,4 @@ as shown in the figure, the model optimize the embedding vector $v_{*}$ by the r
 
 the concept could be a style or object, when the concept is style we could use the concept for style-guide generation.
 
-![Textual Inversion Style](/home/yons/PycharmProjects/ethan-vae/docs/pic/Textual_Inversion_2.png)
+![Textual Inversion Style](pic/Textual_Inversion_2.png)

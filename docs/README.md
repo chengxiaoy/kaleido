@@ -44,7 +44,7 @@
 
 #### self-supervised
 - [MMIA](./Learning%20Representations%20by%20Maximizing%20Mutual%20Information%20Across%20Views.html)
-
+- [CPC](./Representation%20Learning%20with%20Constrastive%20Predictive%20Coding.html)
 
 #### Vision Language Model
 - [CLIP](./Representation%20Learning%20with%20Constrastive%20Predictive%20Coding.html)
